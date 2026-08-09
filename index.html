@@ -457,7 +457,7 @@
                         previewNote.className = 'preview-note';
                         previewNote.innerHTML = `
                             ✦ предпросмотр страницы «${escapeHtml(foundItem.name)}»<br>
-                            <a href="https://yaridanet.c6t.ru/home" class="back-link">← ко всем страницам</a>
+                            <a href="https://yaridanet.c6t.ru/" class="back-link">← ко всем страницам</a>
                         `;
                         container.appendChild(previewNote);
                         container.appendChild(grid);
@@ -473,7 +473,7 @@
                                 <div style="font-size:3rem;">❓</div>
                                 <p>страница «${escapeHtml(requestedLink)}» не найдена</p>
                                 <p style="font-size:1rem;">попробуйте другую ссылку</p>
-                                <a href="https://yaridanet.c6t.ru/home" class="back-link">← ко всем страницам</a>
+                                <a href="https://yaridanet.c6t.ru/" class="back-link">← ко всем страницам</a>
                                 <div style="font-size:2rem; margin-top:1rem;">✦ ✦ ✦</div>
                             </div>
                         `;
@@ -495,7 +495,7 @@
                         <div style="font-size:3rem;">⚠️</div>
                         <p>не удалось загрузить список страниц</p>
                         <p style="font-size:1rem;">ошибка: ${escapeHtml(error.message)}</p>
-                        <a href="https://yaridanet.c6t.ru/home" class="back-link">← ко всем страницам</a>
+                        <a href="https://yaridanet.c6t.ru/" class="back-link">← ко всем страницам</a>
                         <div style="font-size:2rem; margin-top:1rem;">✦ ✦ ✦</div>
                     </div>
                 `;
