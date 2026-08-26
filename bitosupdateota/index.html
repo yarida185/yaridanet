@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OTA-сервер · любой формат</title>
+    <title>Управление manifest.json</title>
     <style>
         body {
             background: #f4f4f4;
             color: #000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Arial, sans-serif;
             margin: 20px;
             padding: 0;
         }
@@ -19,20 +19,9 @@
             border: 1px solid #999;
             padding: 20px;
         }
-        h1, h2 {
-            text-align: center;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 8px;
-        }
-        .error { color: #c00; font-weight: bold; }
-        .success { color: #080; font-weight: bold; }
-        label { display: inline-block; width: 180px; }
-        input[type="text"], input[type="password"], input[type="file"] {
-            padding: 4px;
-            border: 1px solid #888;
-            background: #fff;
-        }
-        input[type="text"] { width: 200px; }
+        h1, h2 { text-align: center; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+        .info { background: #fafafa; border: 1px solid #ddd; padding: 12px; margin: 12px 0; }
+        .json-url { word-break: break-all; background: #f0f0f0; padding: 8px; border: 1px dashed #888; font-family: monospace; }
         button, .btn {
             background: #e0e0e0;
             border: 1px solid #888;
@@ -42,169 +31,99 @@
             color: #000;
         }
         button:hover, .btn:hover { background: #ccc; }
-        .hidden { display: none; }
-        .info {
-            background: #fafafa;
-            border: 1px solid #ddd;
-            padding: 12px;
-            margin: 12px 0;
-        }
-        .json-url {
-            word-break: break-all;
-            background: #f0f0f0;
-            padding: 8px;
-            border: 1px dashed #888;
-            font-family: monospace;
-        }
-        .footer {
-            margin-top: 20px;
-            border-top: 1px solid #ccc;
-            padding-top: 10px;
-            text-align: center;
-            font-size: 14px;
-        }
-        .btn-link {
-            display: inline-block;
-            padding: 6px 12px;
-            background: #e0e0e0;
-            border: 1px solid #888;
-            text-decoration: none;
-            color: #000;
-        }
+        .footer { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; text-align: center; font-size: 14px; }
+        .btn-link { display: inline-block; padding: 6px 12px; background: #e0e0e0; border: 1px solid #888; text-decoration: none; color: #000; }
         .btn-link:hover { background: #ccc; }
+        .hidden { display: none; }
+        .success { color: #080; font-weight: bold; }
+        .error { color: #c00; font-weight: bold; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>OTA-сервер · любой формат</h1>
-    <p style="text-align:center; font-size:14px;">Загрузите файл прошивки (любого формата) и управляйте версией / eol</p>
+    <h1>📄 Управление manifest.json</h1>
+    <p style="text-align:center;">Редактируйте файл вручную через загрузку/скачивание</p>
 
-    <!-- Блок входа -->
-    <div id="loginBlock">
-        <h2>Доступ к панели управления</h2>
-        <p>Введите код доступа:</p>
-        <label for="passInput">Код:</label>
-        <input type="password" id="passInput">
-        <button id="loginBtn">Войти</button>
-        <div id="loginError" class="error hidden">Неверный код</div>
+    <div class="info" id="statusDisplay">
+        <p><strong>Текущая версия:</strong> <span id="currentVersion">—</span></p>
+        <p><strong>Ссылка на прошивку:</strong> <span id="currentUrl">—</span></p>
+        <p><strong>Поддерживаемые версии (eol):</strong> <span id="currentEol">—</span></p>
     </div>
 
-    <!-- Блок управления (скрыт до входа) -->
-    <div id="adminBlock" class="hidden">
-        <h2>Панель управления</h2>
-        <div class="info">
-            <p><strong>Текущая версия прошивки:</strong> <span id="currentVersion">—</span></p>
-            <p><strong>Файл на сервере:</strong> <span id="currentFileStatus">—</span></p>
-            <p><strong>Ссылка на файл:</strong> <span id="currentUrl">—</span></p>
-            <p><strong>Список eol (поддерживаемые версии):</strong> <span id="currentEol">—</span></p>
-        </div>
+    <h2>Скачать / загрузить manifest.json</h2>
 
-        <h3>Загрузить новый файл (любой формат)</h3>
-        <form id="uploadForm" enctype="multipart/form-data" action="upload.php" method="post">
-            <p>
-                <label for="fileInput">Выберите файл:</label>
-                <input type="file" id="fileInput" name="firmware">
-            </p>
-            <p>
-                <label for="newVersion">Номер версии:</label>
-                <input type="text" id="newVersion" placeholder="например, 1.0.1">
-            </p>
-            <button type="submit">Загрузить и обновить</button>
-        </form>
-        <div id="uploadMessage" class="hidden"></div>
+    <p>
+        <button id="downloadBtn">⬇ Скачать текущий manifest.json</button>
+    </p>
 
-        <h3>Обновить только версию и eol (без загрузки файла)</h3>
-        <form id="manifestForm">
-            <p>
-                <label for="editVersion">Версия:</label>
-                <input type="text" id="editVersion" placeholder="1.0.1">
-            </p>
-            <p>
-                <label for="editEol">Список eol (через запятую):</label>
-                <input type="text" id="editEol" style="width: 300px;" placeholder="1.0.0, 1.0.1">
-            </p>
-            <button type="submit">Обновить manifest.json</button>
-        </form>
-        <div id="manifestMessage" class="hidden"></div>
-
-        <h3>Проверка обновления (для OTA-клиента)</h3>
-        <p>Используйте этот URL для получения JSON с информацией об обновлении:</p>
-        <div class="json-url" id="jsonUrlDisplay">https://yaridanet.c6t.ru/bitosupdateota/manifest.json</div>
-        <p style="font-size:13px;">Данные выдаются без кода доступа, как требуется для OTA.</p>
-
-        <p style="margin-top:15px;">
-            <a href="https://yaridanet.c6t.ru/" class="btn-link">← На главную</a>
-            <button id="logoutBtn">Выйти</button>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <p>
+            <label for="fileInput">Выберите новый manifest.json:</label>
+            <input type="file" id="fileInput" accept=".json">
         </p>
-    </div>
+        <button type="submit">📤 Загрузить и обновить</button>
+    </form>
+    <div id="uploadMessage" class="hidden"></div>
 
-    <div class="footer">YaridaNet OTA · любой формат · manifest.json</div>
+    <p style="margin-top:15px;">
+        <a href="https://yaridanet.c6t.ru/" class="btn-link">← На главную</a>
+        <a href="https://yaridanet.c6t.ru/bitosupdateota/manifest.json" class="btn-link" target="_blank">🔗 Прямая ссылка на manifest.json</a>
+    </p>
+
+    <div class="footer">YaridaNet · управление manifest.json (без PHP)</div>
 </div>
 
 <script>
     (function() {
-        const ADMIN_PASSWORD = 'тдл!5';
-        const loginBlock = document.getElementById('loginBlock');
-        const adminBlock = document.getElementById('adminBlock');
-        const passInput = document.getElementById('passInput');
-        const loginBtn = document.getElementById('loginBtn');
-        const loginError = document.getElementById('loginError');
-        const logoutBtn = document.getElementById('logoutBtn');
+        const MANIFEST_URL = 'manifest.json?t=' + Date.now(); // добавляем параметр, чтобы избежать кеша
+
+        // Элементы
         const currentVersion = document.getElementById('currentVersion');
-        const currentFileStatus = document.getElementById('currentFileStatus');
         const currentUrl = document.getElementById('currentUrl');
         const currentEol = document.getElementById('currentEol');
+        const downloadBtn = document.getElementById('downloadBtn');
         const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('fileInput');
-        const newVersionInput = document.getElementById('newVersion');
         const uploadMessage = document.getElementById('uploadMessage');
-        const manifestForm = document.getElementById('manifestForm');
-        const editVersion = document.getElementById('editVersion');
-        const editEol = document.getElementById('editEol');
-        const manifestMessage = document.getElementById('manifestMessage');
-        const jsonUrlDisplay = document.getElementById('jsonUrlDisplay');
 
-        function fetchStatus() {
-            fetch('status.php?t=' + Date.now())
-                .then(r => r.json())
+        // --- Загрузка текущего manifest.json ---
+        function loadManifest() {
+            fetch(MANIFEST_URL)
+                .then(response => {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
                 .then(data => {
                     currentVersion.textContent = data.version || '—';
-                    currentFileStatus.textContent = data.fileExists ? '✅ файл загружен' : '❌ файл отсутствует';
                     currentUrl.textContent = data.url || '—';
-                    currentEol.textContent = data.eol && data.eol.length ? data.eol.join(', ') : '—';
-                    editVersion.value = data.version || '';
-                    editEol.value = data.eol ? data.eol.join(', ') : '';
-                    newVersionInput.value = data.version || '';
+                    currentEol.textContent = (data.eol && data.eol.length) ? data.eol.join(', ') : '—';
                 })
-                .catch(() => {
+                .catch(err => {
                     currentVersion.textContent = 'ошибка загрузки';
-                    currentFileStatus.textContent = '—';
                     currentUrl.textContent = '—';
                     currentEol.textContent = '—';
+                    console.warn('Не удалось загрузить manifest.json:', err);
                 });
         }
 
-        function tryLogin() {
-            if (passInput.value.trim() === ADMIN_PASSWORD) {
-                loginBlock.style.display = 'none';
-                adminBlock.classList.remove('hidden');
-                loginError.classList.add('hidden');
-                fetchStatus();
-            } else {
-                loginError.classList.remove('hidden');
-                passInput.value = '';
-                passInput.focus();
-            }
+        // --- Скачивание manifest.json ---
+        function downloadManifest() {
+            fetch(MANIFEST_URL)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'manifest.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => alert('Не удалось скачать файл: ' + err.message));
         }
 
-        function logout() {
-            adminBlock.classList.add('hidden');
-            loginBlock.style.display = 'block';
-            passInput.value = '';
-            loginError.classList.add('hidden');
-        }
-
-        // Загрузка файла
+        // --- Загрузка нового manifest.json ---
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const file = fileInput.files[0];
@@ -212,90 +131,58 @@
                 alert('Выберите файл');
                 return;
             }
-            const version = newVersionInput.value.trim();
-            if (!version) {
-                alert('Укажите номер версии');
+            if (file.name !== 'manifest.json' && file.type !== 'application/json') {
+                alert('Файл должен быть manifest.json');
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('firmware', file);
-            formData.append('version', version);
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const json = JSON.parse(ev.target.result);
+                    // Проверяем структуру (хотя бы наличие version)
+                    if (!json.version) {
+                        throw new Error('Нет поля version');
+                    }
+                } catch (err) {
+                    alert('Некорректный JSON: ' + err.message);
+                    return;
+                }
 
-            uploadMessage.className = 'hidden';
-            uploadMessage.textContent = '';
+                // Отправляем файл на сервер через fetch с FormData
+                const formData = new FormData();
+                formData.append('file', file);
 
-            fetch('upload.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(r => r.json())
-            .then(data => {
-                uploadMessage.classList.remove('hidden');
-                if (data.success) {
-                    uploadMessage.className = 'success';
-                    uploadMessage.textContent = '✅ ' + data.message;
-                    fetchStatus();
-                } else {
+                fetch('upload_manifest.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    uploadMessage.classList.remove('hidden');
+                    if (data.success) {
+                        uploadMessage.className = 'success';
+                        uploadMessage.textContent = '✅ ' + data.message;
+                        loadManifest(); // обновляем отображение
+                    } else {
+                        uploadMessage.className = 'error';
+                        uploadMessage.textContent = '❌ Ошибка: ' + data.message;
+                    }
+                })
+                .catch(err => {
+                    uploadMessage.classList.remove('hidden');
                     uploadMessage.className = 'error';
-                    uploadMessage.textContent = '❌ Ошибка: ' + data.message;
-                }
-            })
-            .catch(err => {
-                uploadMessage.classList.remove('hidden');
-                uploadMessage.className = 'error';
-                uploadMessage.textContent = '❌ Ошибка соединения: ' + err.message;
-            });
+                    uploadMessage.textContent = '❌ Ошибка соединения: ' + err.message;
+                });
+            };
+            reader.readAsText(file);
         });
 
-        // Обновление только manifest (версия + eol)
-        manifestForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const version = editVersion.value.trim();
-            const eolRaw = editEol.value.trim();
-            if (!version) {
-                alert('Версия не может быть пустой');
-                return;
-            }
+        // --- События ---
+        downloadBtn.addEventListener('click', downloadManifest);
 
-            const formData = new FormData();
-            formData.append('version', version);
-            formData.append('eol', eolRaw);
-
-            manifestMessage.className = 'hidden';
-            manifestMessage.textContent = '';
-
-            fetch('update_manifest.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(r => r.json())
-            .then(data => {
-                manifestMessage.classList.remove('hidden');
-                if (data.success) {
-                    manifestMessage.className = 'success';
-                    manifestMessage.textContent = '✅ ' + data.message;
-                    fetchStatus();
-                } else {
-                    manifestMessage.className = 'error';
-                    manifestMessage.textContent = '❌ Ошибка: ' + data.message;
-                }
-            })
-            .catch(err => {
-                manifestMessage.classList.remove('hidden');
-                manifestMessage.className = 'error';
-                manifestMessage.textContent = '❌ Ошибка соединения: ' + err.message;
-            });
-        });
-
-        loginBtn.addEventListener('click', tryLogin);
-        passInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
-        logoutBtn.addEventListener('click', logout);
-
-        loginBlock.style.display = 'block';
-        adminBlock.classList.add('hidden');
-
-        jsonUrlDisplay.textContent = window.location.origin + '/bitosupdateota/manifest.json';
+        // --- Загружаем данные при старте ---
+        loadManifest();
     })();
 </script>
 </body>
