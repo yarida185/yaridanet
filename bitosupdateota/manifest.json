@@ -1,1 +1,5 @@
-{"version":"1.2.5_full","url":"https://yaridanet.c6t.ru/bitosupdateota","eol":["",""]}
+{
+  "version": "пример1",
+  "url": "https://пример2",
+  "eol": ["пример3", "пример4"]
+}
