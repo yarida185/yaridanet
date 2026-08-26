@@ -1,17 +1,8 @@
 <?php
-// upload.php с отладкой
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// upload.php — загрузка файла и обновление версии в manifest.json
 header('Content-Type: application/json');
 
-// Проверка, что файл загружен
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Метод не разрешён']);
-    exit;
-}
-
-// Проверка сессии или пароля
+// --- Проверка авторизации ---
 session_start();
 if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
     $pass = isset($_POST['password']) ? $_POST['password'] : '';
@@ -23,8 +14,9 @@ if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
     $_SESSION['authenticated'] = true;
 }
 
+// --- Проверка загруженного файла ---
 if (!isset($_FILES['firmware']) || $_FILES['firmware']['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(['success' => false, 'message' => 'Файл не загружен или ошибка (код: ' . $_FILES['firmware']['error'] . ')']);
+    echo json_encode(['success' => false, 'message' => 'Файл не загружен или ошибка']);
     exit;
 }
 
@@ -35,40 +27,36 @@ if ($version === '') {
     exit;
 }
 
+// --- Сохранение файла с оригинальным расширением ---
 $uploadDir = __DIR__ . '/uploads/';
 if (!is_dir($uploadDir)) {
-    if (!mkdir($uploadDir, 0755, true)) {
-        echo json_encode(['success' => false, 'message' => 'Не удалось создать папку uploads']);
-        exit;
-    }
+    mkdir($uploadDir, 0755, true);
 }
 
 $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
 $targetFile = $uploadDir . 'firmware.' . $ext;
 if (!move_uploaded_file($file['tmp_name'], $targetFile)) {
-    echo json_encode(['success' => false, 'message' => 'Не удалось сохранить файл (ошибка перемещения)']);
+    echo json_encode(['success' => false, 'message' => 'Не удалось сохранить файл']);
     exit;
 }
 
+// --- Формируем URL для скачивания ---
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'];
 $downloadUrl = $protocol . '://' . $host . '/bitosupdateota/uploads/firmware.' . $ext;
 
+// --- Обновляем manifest.json ---
 $manifestPath = __DIR__ . '/manifest.json';
 $manifest = [];
 if (file_exists($manifestPath)) {
-    $content = file_get_contents($manifestPath);
-    $manifest = json_decode($content, true);
+    $manifest = json_decode(file_get_contents($manifestPath), true);
     if (!is_array($manifest)) $manifest = [];
 }
 $manifest['version'] = $version;
 $manifest['url'] = $downloadUrl;
 if (!isset($manifest['eol'])) $manifest['eol'] = [];
 
-if (file_put_contents($manifestPath, json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)) === false) {
-    echo json_encode(['success' => false, 'message' => 'Не удалось записать manifest.json']);
-    exit;
-}
+file_put_contents($manifestPath, json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
 echo json_encode([
     'success' => true,
