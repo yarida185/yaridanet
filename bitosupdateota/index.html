@@ -26,7 +26,7 @@
         }
         .error { color: #c00; font-weight: bold; }
         .success { color: #080; font-weight: bold; }
-        label { display: inline-block; width: 160px; }
+        label { display: inline-block; width: 180px; }
         input[type="text"], input[type="password"], input[type="file"] {
             padding: 4px;
             border: 1px solid #888;
@@ -73,6 +73,7 @@
         }
         .btn-link:hover { background: #ccc; }
         .file-info { font-size: 13px; color: #555; }
+        textarea { width: 300px; height: 60px; }
     </style>
 </head>
 <body>
@@ -96,6 +97,7 @@
         <div class="info">
             <p><strong>Текущая версия прошивки:</strong> <span id="currentVersion">—</span></p>
             <p><strong>Файл на сервере:</strong> <span id="currentFileStatus">—</span></p>
+            <p><strong>Список eol (поддерживаемые версии):</strong> <span id="currentEol">—</span></p>
         </div>
 
         <h3>Загрузить новый .ino файл</h3>
@@ -111,6 +113,17 @@
             <button type="submit">Загрузить и обновить</button>
         </form>
         <div id="uploadMessage" class="hidden"></div>
+
+        <h3>Список поддерживаемых версий (eol)</h3>
+        <p>Введите версии через запятую, например: <code>1.0.0, 1.0.1, 1.0.2</code></p>
+        <form id="eolForm">
+            <p>
+                <label for="eolInput">Версии:</label>
+                <input type="text" id="eolInput" style="width: 300px;" placeholder="1.0.0, 1.0.1">
+            </p>
+            <button type="submit">Сохранить eol</button>
+        </form>
+        <div id="eolMessage" class="hidden"></div>
 
         <h3>Проверка обновления (для Arduino)</h3>
         <p>Используйте этот URL для получения JSON с информацией об обновлении:</p>
@@ -137,10 +150,14 @@
         const logoutBtn = document.getElementById('logoutBtn');
         const currentVersion = document.getElementById('currentVersion');
         const currentFileStatus = document.getElementById('currentFileStatus');
+        const currentEol = document.getElementById('currentEol');
         const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('fileInput');
         const newVersionInput = document.getElementById('newVersion');
         const uploadMessage = document.getElementById('uploadMessage');
+        const eolForm = document.getElementById('eolForm');
+        const eolInput = document.getElementById('eolInput');
+        const eolMessage = document.getElementById('eolMessage');
         const jsonUrlDisplay = document.getElementById('jsonUrlDisplay');
 
         function fetchStatus() {
@@ -149,11 +166,14 @@
                 .then(data => {
                     currentVersion.textContent = data.version || '—';
                     currentFileStatus.textContent = data.fileExists ? '✅ файл загружен' : '❌ файл отсутствует';
+                    currentEol.textContent = data.eol && data.eol.length ? data.eol.join(', ') : '—';
+                    eolInput.value = data.eol ? data.eol.join(', ') : '';
                     newVersionInput.value = data.version || '';
                 })
                 .catch(() => {
                     currentVersion.textContent = 'ошибка загрузки';
                     currentFileStatus.textContent = '—';
+                    currentEol.textContent = '—';
                 });
         }
 
@@ -177,6 +197,7 @@
             loginError.classList.add('hidden');
         }
 
+        // Загрузка файла
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const file = fileInput.files[0];
@@ -221,6 +242,43 @@
                 uploadMessage.classList.remove('hidden');
                 uploadMessage.className = 'error';
                 uploadMessage.textContent = '❌ Ошибка соединения: ' + err.message;
+            });
+        });
+
+        // Обновление eol
+        eolForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const eolRaw = eolInput.value.trim();
+            if (eolRaw === '') {
+                alert('Введите хотя бы одну версию');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('eol', eolRaw);
+
+            eolMessage.className = 'hidden';
+            eolMessage.textContent = '';
+
+            fetch('update_eol.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                eolMessage.classList.remove('hidden');
+                if (data.success) {
+                    eolMessage.className = 'success';
+                    eolMessage.textContent = '✅ ' + data.message;
+                    fetchStatus();
+                } else {
+                    eolMessage.className = 'error';
+                    eolMessage.textContent = '❌ Ошибка: ' + data.message;
+                }
+            })
+            .catch(err => {
+                eolMessage.classList.remove('hidden');
+                eolMessage.className = 'error';
+                eolMessage.textContent = '❌ Ошибка соединения: ' + err.message;
             });
         });
 
