@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTA-сервер · .ino (локальный)</title>
+    <style>
+        body {
+            background: #f4f4f4;
+            color: #000;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #999;
+            padding: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 8px;
+        }
+        .error { color: #c00; font-weight: bold; }
+        .success { color: #080; font-weight: bold; }
+        label { display: inline-block; width: 160px; }
+        input[type="text"], input[type="password"], input[type="file"] {
+            padding: 4px;
+            border: 1px solid #888;
+            background: #fff;
+        }
+        input[type="text"] { width: 200px; }
+        button, .btn {
+            background: #e0e0e0;
+            border: 1px solid #888;
+            padding: 6px 16px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #000;
+        }
+        button:hover, .btn:hover { background: #ccc; }
+        .hidden { display: none; }
+        .info {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 12px;
+            margin: 12px 0;
+        }
+        .json-url {
+            word-break: break-all;
+            background: #f0f0f0;
+            padding: 8px;
+            border: 1px dashed #888;
+            font-family: monospace;
+        }
+        .footer {
+            margin-top: 20px;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .btn-link {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #e0e0e0;
+            border: 1px solid #888;
+            text-decoration: none;
+            color: #000;
+        }
+        .btn-link:hover { background: #ccc; }
+        .file-info { font-size: 13px; color: #555; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>OTA-сервер · .ino (локальный)</h1>
+    <p style="text-align:center; font-size:14px;">Управление версией прошивки Arduino</p>
+
+    <!-- Блок входа -->
+    <div id="loginBlock">
+        <h2>Доступ к панели управления</h2>
+        <p>Введите код доступа:</p>
+        <label for="passInput">Код:</label>
+        <input type="password" id="passInput">
+        <button id="loginBtn">Войти</button>
+        <div id="loginError" class="error hidden">Неверный код</div>
+    </div>
+
+    <!-- Блок управления (скрыт до входа) -->
+    <div id="adminBlock" class="hidden">
+        <h2>Панель управления</h2>
+        <div class="info">
+            <p><strong>Текущая версия прошивки:</strong> <span id="currentVersion">—</span></p>
+            <p><strong>Файл на сервере:</strong> <span id="currentFileStatus">—</span></p>
+        </div>
+
+        <h3>Загрузить новый .ino файл</h3>
+        <form id="uploadForm" enctype="multipart/form-data" action="upload.php" method="post">
+            <p>
+                <label for="fileInput">Выберите .ino файл:</label>
+                <input type="file" id="fileInput" name="firmware" accept=".ino">
+            </p>
+            <p>
+                <label for="newVersion">Номер версии:</label>
+                <input type="text" id="newVersion" placeholder="например, 1.0.1">
+            </p>
+            <button type="submit">Загрузить и обновить</button>
+        </form>
+        <div id="uploadMessage" class="hidden"></div>
+
+        <h3>Проверка обновления (для Arduino)</h3>
+        <p>Используйте этот URL для получения JSON с информацией об обновлении:</p>
+        <div class="json-url" id="jsonUrlDisplay">https://yaridanet.c6t.ru/bitosupdateota/json.php</div>
+        <p style="font-size:13px;">Данные выдаются без кода доступа, как требуется для OTA.</p>
+
+        <p style="margin-top:15px;">
+            <a href="https://yaridanet.c6t.ru/" class="btn-link">← На главную</a>
+            <button id="logoutBtn">Выйти</button>
+        </p>
+    </div>
+
+    <div class="footer">YaridaNet OTA · .ino локальный</div>
+</div>
+
+<script>
+    (function() {
+        const ADMIN_PASSWORD = 'тдл!5';
+        const loginBlock = document.getElementById('loginBlock');
+        const adminBlock = document.getElementById('adminBlock');
+        const passInput = document.getElementById('passInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const currentVersion = document.getElementById('currentVersion');
+        const currentFileStatus = document.getElementById('currentFileStatus');
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('fileInput');
+        const newVersionInput = document.getElementById('newVersion');
+        const uploadMessage = document.getElementById('uploadMessage');
+        const jsonUrlDisplay = document.getElementById('jsonUrlDisplay');
+
+        function fetchStatus() {
+            fetch('status.php?t=' + Date.now())
+                .then(r => r.json())
+                .then(data => {
+                    currentVersion.textContent = data.version || '—';
+                    currentFileStatus.textContent = data.fileExists ? '✅ файл загружен' : '❌ файл отсутствует';
+                    newVersionInput.value = data.version || '';
+                })
+                .catch(() => {
+                    currentVersion.textContent = 'ошибка загрузки';
+                    currentFileStatus.textContent = '—';
+                });
+        }
+
+        function tryLogin() {
+            if (passInput.value.trim() === ADMIN_PASSWORD) {
+                loginBlock.style.display = 'none';
+                adminBlock.classList.remove('hidden');
+                loginError.classList.add('hidden');
+                fetchStatus();
+            } else {
+                loginError.classList.remove('hidden');
+                passInput.value = '';
+                passInput.focus();
+            }
+        }
+
+        function logout() {
+            adminBlock.classList.add('hidden');
+            loginBlock.style.display = 'block';
+            passInput.value = '';
+            loginError.classList.add('hidden');
+        }
+
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Выберите файл .ino');
+                return;
+            }
+            if (!file.name.endsWith('.ino')) {
+                alert('Файл должен иметь расширение .ino');
+                return;
+            }
+            const version = newVersionInput.value.trim();
+            if (!version) {
+                alert('Укажите номер версии');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('firmware', file);
+            formData.append('version', version);
+
+            uploadMessage.className = 'hidden';
+            uploadMessage.textContent = '';
+
+            fetch('upload.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                uploadMessage.classList.remove('hidden');
+                if (data.success) {
+                    uploadMessage.className = 'success';
+                    uploadMessage.textContent = '✅ ' + data.message;
+                    fetchStatus();
+                } else {
+                    uploadMessage.className = 'error';
+                    uploadMessage.textContent = '❌ Ошибка: ' + data.message;
+                }
+            })
+            .catch(err => {
+                uploadMessage.classList.remove('hidden');
+                uploadMessage.className = 'error';
+                uploadMessage.textContent = '❌ Ошибка соединения: ' + err.message;
+            });
+        });
+
+        loginBtn.addEventListener('click', tryLogin);
+        passInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+        logoutBtn.addEventListener('click', logout);
+
+        loginBlock.style.display = 'block';
+        adminBlock.classList.add('hidden');
+
+        jsonUrlDisplay.textContent = window.location.origin + '/bitosupdateota/json.php';
+    })();
+</script>
+</body>
+</html>
