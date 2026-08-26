@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OTA-сервер · .ino (локальный)</title>
+    <title>OTA-сервер · любой формат</title>
     <style>
         body {
             background: #f4f4f4;
@@ -72,14 +72,12 @@
             color: #000;
         }
         .btn-link:hover { background: #ccc; }
-        .file-info { font-size: 13px; color: #555; }
-        textarea { width: 300px; height: 60px; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>OTA-сервер · .ino (локальный)</h1>
-    <p style="text-align:center; font-size:14px;">Управление версией прошивки Arduino</p>
+    <h1>OTA-сервер · любой формат</h1>
+    <p style="text-align:center; font-size:14px;">Загрузите файл прошивки (любого формата) и управляйте версией / eol</p>
 
     <!-- Блок входа -->
     <div id="loginBlock">
@@ -97,14 +95,15 @@
         <div class="info">
             <p><strong>Текущая версия прошивки:</strong> <span id="currentVersion">—</span></p>
             <p><strong>Файл на сервере:</strong> <span id="currentFileStatus">—</span></p>
+            <p><strong>Ссылка на файл:</strong> <span id="currentUrl">—</span></p>
             <p><strong>Список eol (поддерживаемые версии):</strong> <span id="currentEol">—</span></p>
         </div>
 
-        <h3>Загрузить новый .ino файл</h3>
+        <h3>Загрузить новый файл (любой формат)</h3>
         <form id="uploadForm" enctype="multipart/form-data" action="upload.php" method="post">
             <p>
-                <label for="fileInput">Выберите .ino файл:</label>
-                <input type="file" id="fileInput" name="firmware" accept=".ino">
+                <label for="fileInput">Выберите файл:</label>
+                <input type="file" id="fileInput" name="firmware">
             </p>
             <p>
                 <label for="newVersion">Номер версии:</label>
@@ -114,20 +113,23 @@
         </form>
         <div id="uploadMessage" class="hidden"></div>
 
-        <h3>Список поддерживаемых версий (eol)</h3>
-        <p>Введите версии через запятую, например: <code>1.0.0, 1.0.1, 1.0.2</code></p>
-        <form id="eolForm">
+        <h3>Обновить только версию и eol (без загрузки файла)</h3>
+        <form id="manifestForm">
             <p>
-                <label for="eolInput">Версии:</label>
-                <input type="text" id="eolInput" style="width: 300px;" placeholder="1.0.0, 1.0.1">
+                <label for="editVersion">Версия:</label>
+                <input type="text" id="editVersion" placeholder="1.0.1">
             </p>
-            <button type="submit">Сохранить eol</button>
+            <p>
+                <label for="editEol">Список eol (через запятую):</label>
+                <input type="text" id="editEol" style="width: 300px;" placeholder="1.0.0, 1.0.1">
+            </p>
+            <button type="submit">Обновить manifest.json</button>
         </form>
-        <div id="eolMessage" class="hidden"></div>
+        <div id="manifestMessage" class="hidden"></div>
 
-        <h3>Проверка обновления (для Arduino)</h3>
+        <h3>Проверка обновления (для OTA-клиента)</h3>
         <p>Используйте этот URL для получения JSON с информацией об обновлении:</p>
-        <div class="json-url" id="jsonUrlDisplay">https://yaridanet.c6t.ru/bitosupdateota/json.php</div>
+        <div class="json-url" id="jsonUrlDisplay">https://yaridanet.c6t.ru/bitosupdateota/manifest.json</div>
         <p style="font-size:13px;">Данные выдаются без кода доступа, как требуется для OTA.</p>
 
         <p style="margin-top:15px;">
@@ -136,7 +138,7 @@
         </p>
     </div>
 
-    <div class="footer">YaridaNet OTA · .ino локальный</div>
+    <div class="footer">YaridaNet OTA · любой формат · manifest.json</div>
 </div>
 
 <script>
@@ -150,14 +152,16 @@
         const logoutBtn = document.getElementById('logoutBtn');
         const currentVersion = document.getElementById('currentVersion');
         const currentFileStatus = document.getElementById('currentFileStatus');
+        const currentUrl = document.getElementById('currentUrl');
         const currentEol = document.getElementById('currentEol');
         const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('fileInput');
         const newVersionInput = document.getElementById('newVersion');
         const uploadMessage = document.getElementById('uploadMessage');
-        const eolForm = document.getElementById('eolForm');
-        const eolInput = document.getElementById('eolInput');
-        const eolMessage = document.getElementById('eolMessage');
+        const manifestForm = document.getElementById('manifestForm');
+        const editVersion = document.getElementById('editVersion');
+        const editEol = document.getElementById('editEol');
+        const manifestMessage = document.getElementById('manifestMessage');
         const jsonUrlDisplay = document.getElementById('jsonUrlDisplay');
 
         function fetchStatus() {
@@ -166,13 +170,16 @@
                 .then(data => {
                     currentVersion.textContent = data.version || '—';
                     currentFileStatus.textContent = data.fileExists ? '✅ файл загружен' : '❌ файл отсутствует';
+                    currentUrl.textContent = data.url || '—';
                     currentEol.textContent = data.eol && data.eol.length ? data.eol.join(', ') : '—';
-                    eolInput.value = data.eol ? data.eol.join(', ') : '';
+                    editVersion.value = data.version || '';
+                    editEol.value = data.eol ? data.eol.join(', ') : '';
                     newVersionInput.value = data.version || '';
                 })
                 .catch(() => {
                     currentVersion.textContent = 'ошибка загрузки';
                     currentFileStatus.textContent = '—';
+                    currentUrl.textContent = '—';
                     currentEol.textContent = '—';
                 });
         }
@@ -202,11 +209,7 @@
             e.preventDefault();
             const file = fileInput.files[0];
             if (!file) {
-                alert('Выберите файл .ino');
-                return;
-            }
-            if (!file.name.endsWith('.ino')) {
-                alert('Файл должен иметь расширение .ino');
+                alert('Выберите файл');
                 return;
             }
             const version = newVersionInput.value.trim();
@@ -245,40 +248,43 @@
             });
         });
 
-        // Обновление eol
-        eolForm.addEventListener('submit', function(e) {
+        // Обновление только manifest (версия + eol)
+        manifestForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            const eolRaw = eolInput.value.trim();
-            if (eolRaw === '') {
-                alert('Введите хотя бы одну версию');
+            const version = editVersion.value.trim();
+            const eolRaw = editEol.value.trim();
+            if (!version) {
+                alert('Версия не может быть пустой');
                 return;
             }
+
             const formData = new FormData();
+            formData.append('version', version);
             formData.append('eol', eolRaw);
 
-            eolMessage.className = 'hidden';
-            eolMessage.textContent = '';
+            manifestMessage.className = 'hidden';
+            manifestMessage.textContent = '';
 
-            fetch('update_eol.php', {
+            fetch('update_manifest.php', {
                 method: 'POST',
                 body: formData
             })
             .then(r => r.json())
             .then(data => {
-                eolMessage.classList.remove('hidden');
+                manifestMessage.classList.remove('hidden');
                 if (data.success) {
-                    eolMessage.className = 'success';
-                    eolMessage.textContent = '✅ ' + data.message;
+                    manifestMessage.className = 'success';
+                    manifestMessage.textContent = '✅ ' + data.message;
                     fetchStatus();
                 } else {
-                    eolMessage.className = 'error';
-                    eolMessage.textContent = '❌ Ошибка: ' + data.message;
+                    manifestMessage.className = 'error';
+                    manifestMessage.textContent = '❌ Ошибка: ' + data.message;
                 }
             })
             .catch(err => {
-                eolMessage.classList.remove('hidden');
-                eolMessage.className = 'error';
-                eolMessage.textContent = '❌ Ошибка соединения: ' + err.message;
+                manifestMessage.classList.remove('hidden');
+                manifestMessage.className = 'error';
+                manifestMessage.textContent = '❌ Ошибка соединения: ' + err.message;
             });
         });
 
@@ -289,7 +295,7 @@
         loginBlock.style.display = 'block';
         adminBlock.classList.add('hidden');
 
-        jsonUrlDisplay.textContent = window.location.origin + '/bitosupdateota/json.php';
+        jsonUrlDisplay.textContent = window.location.origin + '/bitosupdateota/manifest.json';
     })();
 </script>
 </body>
