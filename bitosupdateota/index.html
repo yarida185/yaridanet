@@ -37,47 +37,65 @@
         .hidden { display: none; }
         .success { color: #080; font-weight: bold; }
         .error { color: #c00; font-weight: bold; }
+        .password-block { text-align: center; margin: 20px 0; }
+        input[type="password"] { padding: 6px; border: 1px solid #888; width: 200px; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>📄 Управление manifest.json</h1>
-    <p style="text-align:center;">Редактируйте файл вручную через загрузку/скачивание</p>
+    <p style="text-align:center;">Доступ защищён паролем</p>
 
-    <div class="info" id="statusDisplay">
-        <p><strong>Текущая версия:</strong> <span id="currentVersion">—</span></p>
-        <p><strong>Ссылка на прошивку:</strong> <span id="currentUrl">—</span></p>
-        <p><strong>Поддерживаемые версии (eol):</strong> <span id="currentEol">—</span></p>
+    <!-- Блок входа -->
+    <div id="loginBlock" class="password-block">
+        <p>Введите пароль для доступа:</p>
+        <input type="password" id="passInput" placeholder="Введите пароль">
+        <button id="loginBtn">Войти</button>
+        <div id="loginError" class="error hidden">Неверный пароль</div>
     </div>
 
-    <h2>Скачать / загрузить manifest.json</h2>
+    <!-- Блок управления (скрыт до входа) -->
+    <div id="adminBlock" class="hidden">
+        <div class="info" id="statusDisplay">
+            <p><strong>Текущая версия:</strong> <span id="currentVersion">—</span></p>
+            <p><strong>Ссылка на прошивку:</strong> <span id="currentUrl">—</span></p>
+            <p><strong>Поддерживаемые версии (eol):</strong> <span id="currentEol">—</span></p>
+        </div>
 
-    <p>
-        <button id="downloadBtn">⬇ Скачать текущий manifest.json</button>
-    </p>
+        <h2>Скачать / загрузить manifest.json</h2>
 
-    <form id="uploadForm" enctype="multipart/form-data">
         <p>
-            <label for="fileInput">Выберите новый manifest.json:</label>
-            <input type="file" id="fileInput" accept=".json">
+            <button id="downloadBtn">⬇ Скачать текущий manifest.json</button>
         </p>
-        <button type="submit">📤 Загрузить и обновить</button>
-    </form>
-    <div id="uploadMessage" class="hidden"></div>
 
-    <p style="margin-top:15px;">
-        <a href="https://yaridanet.c6t.ru/" class="btn-link">← На главную</a>
-        <a href="https://yaridanet.c6t.ru/bitosupdateota/manifest.json" class="btn-link" target="_blank">🔗 Прямая ссылка на manifest.json</a>
-    </p>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <p>
+                <label for="fileInput">Выберите новый manifest.json:</label>
+                <input type="file" id="fileInput" accept=".json">
+            </p>
+            <button type="submit">📤 Загрузить и обновить</button>
+        </form>
+        <div id="uploadMessage" class="hidden"></div>
 
-    <div class="footer">YaridaNet · управление manifest.json (без PHP)</div>
+        <p style="margin-top:15px;">
+            <a href="https://yaridanet.c6t.ru/" class="btn-link">← На главную</a>
+            <a href="https://yaridanet.c6t.ru/bitosupdateota/manifest.json" class="btn-link" target="_blank">🔗 Прямая ссылка на manifest.json</a>
+        </p>
+    </div>
+
+    <div class="footer">YaridaNet · управление manifest.json (защищено паролем)</div>
 </div>
 
 <script>
     (function() {
-        const MANIFEST_URL = 'manifest.json?t=' + Date.now(); // добавляем параметр, чтобы избежать кеша
+        const PASSWORD = 'тдл!5';
+        const MANIFEST_URL = 'manifest.json?t=' + Date.now();
 
-        // Элементы
+        const loginBlock = document.getElementById('loginBlock');
+        const adminBlock = document.getElementById('adminBlock');
+        const passInput = document.getElementById('passInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
         const currentVersion = document.getElementById('currentVersion');
         const currentUrl = document.getElementById('currentUrl');
         const currentEol = document.getElementById('currentEol');
@@ -86,7 +104,21 @@
         const fileInput = document.getElementById('fileInput');
         const uploadMessage = document.getElementById('uploadMessage');
 
-        // --- Загрузка текущего manifest.json ---
+        // --- Функция входа ---
+        function tryLogin() {
+            if (passInput.value.trim() === PASSWORD) {
+                loginBlock.style.display = 'none';
+                adminBlock.classList.remove('hidden');
+                loginError.classList.add('hidden');
+                loadManifest();
+            } else {
+                loginError.classList.remove('hidden');
+                passInput.value = '';
+                passInput.focus();
+            }
+        }
+
+        // --- Загрузка manifest.json ---
         function loadManifest() {
             fetch(MANIFEST_URL)
                 .then(response => {
@@ -123,7 +155,7 @@
                 .catch(err => alert('Не удалось скачать файл: ' + err.message));
         }
 
-        // --- Загрузка нового manifest.json ---
+        // --- Загрузка нового manifest.json (если PHP работает) ---
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const file = fileInput.files[0];
@@ -140,16 +172,12 @@
             reader.onload = function(ev) {
                 try {
                     const json = JSON.parse(ev.target.result);
-                    // Проверяем структуру (хотя бы наличие version)
-                    if (!json.version) {
-                        throw new Error('Нет поля version');
-                    }
+                    if (!json.version) throw new Error('Нет поля version');
                 } catch (err) {
                     alert('Некорректный JSON: ' + err.message);
                     return;
                 }
 
-                // Отправляем файл на сервер через fetch с FormData
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -163,7 +191,7 @@
                     if (data.success) {
                         uploadMessage.className = 'success';
                         uploadMessage.textContent = '✅ ' + data.message;
-                        loadManifest(); // обновляем отображение
+                        loadManifest();
                     } else {
                         uploadMessage.className = 'error';
                         uploadMessage.textContent = '❌ Ошибка: ' + data.message;
@@ -179,10 +207,15 @@
         });
 
         // --- События ---
+        loginBtn.addEventListener('click', tryLogin);
+        passInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') tryLogin();
+        });
         downloadBtn.addEventListener('click', downloadManifest);
 
-        // --- Загружаем данные при старте ---
-        loadManifest();
+        // --- Инициализация: показываем форму входа ---
+        loginBlock.style.display = 'block';
+        adminBlock.classList.add('hidden');
     })();
 </script>
 </body>
