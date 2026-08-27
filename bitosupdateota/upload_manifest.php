@@ -1,8 +1,14 @@
 <?php
-// upload_manifest.php — принимает загруженный manifest.json и сохраняет его
 header('Content-Type: application/json');
 
-// Проверка файла
+// Простая проверка пароля (передаётся в POST)
+$pass = isset($_POST['password']) ? $_POST['password'] : '';
+if ($pass !== 'тдл!5') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Доступ запрещён']);
+    exit;
+}
+
 if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
     echo json_encode(['success' => false, 'message' => 'Файл не загружен']);
     exit;
@@ -14,14 +20,12 @@ if ($file['name'] !== 'manifest.json' && mime_content_type($file['tmp_name']) !=
     exit;
 }
 
-// Проверяем, что это валидный JSON
 $content = file_get_contents($file['tmp_name']);
 if (json_decode($content) === null) {
     echo json_encode(['success' => false, 'message' => 'Некорректный JSON']);
     exit;
 }
 
-// Сохраняем в корень
 if (file_put_contents(__DIR__ . '/manifest.json', $content) === false) {
     echo json_encode(['success' => false, 'message' => 'Не удалось сохранить файл']);
     exit;
