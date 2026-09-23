@@ -1,1 +1,1 @@
-{"pic":"","name":"test","des":"tsest","link":"/"}
+{"pic":"📄","name":"test","des":"tsest","link":"index.html"}
