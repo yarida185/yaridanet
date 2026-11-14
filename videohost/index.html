@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YaridaNet · Видео</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #111;
+            color: #eee;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        header {
+            padding: 16px;
+            text-align: center;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        header h1 { margin: 0; font-size: 22px; }
+        .player-wrap {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            padding: 12px;
+        }
+        #mainPlayer {
+            width: 100%;
+            max-width: 900px;
+            height: auto;
+            background: #000;
+            min-height: 200px;
+        }
+        .player-title {
+            text-align: center;
+            padding: 8px;
+            font-size: 15px;
+            color: #aaa;
+            min-height: 20px;
+        }
+        .videos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            padding: 16px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .video-card {
+            background: #1c1c1c;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.12s, border-color 0.12s;
+        }
+        .video-card:hover {
+            transform: translateY(-3px);
+            border-color: #666;
+        }
+        .video-card.active {
+            border-color: #4caf50;
+            box-shadow: 0 0 0 2px #4caf50;
+        }
+        .thumb {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            object-fit: cover;
+            display: block;
+        }
+        .thumb-placeholder {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #222 center/cover no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 28px;
+        }
+        .card-body {
+            padding: 10px 12px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-desc {
+            font-size: 12px;
+            color: #999;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .status {
+            padding: 12px;
+            text-align: center;
+            color: #888;
+        }
+        .error { color: #e57373; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🎬 Видеохостинг YaridaNet</h1>
+</header>
+
+<div class="player-wrap">
+    <video id="mainPlayer" controls playsinline preload="metadata"></video>
+</div>
+<div class="player-title" id="playerTitle">Выберите видео из списка ниже</div>
+
+<div class="status" id="status">Загрузка списка видео…</div>
+<div class="videos" id="videosGrid"></div>
+
+<!-- HLS.js для потоков .m3u8 -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<!-- Firebase SDK v9 (модульный) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+        getFirestore,
+        collection,
+        getDocs,
+        query,
+        orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import {
+        getStorage,
+        ref,
+        getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+    // 🔧 ВАША КОНФИГУРАЦИЯ FIREBASE
+    const firebaseConfig = {
+        apiKey: "ВАШ_API_KEY",
+        authDomain: "ВАШ_ПРОЕКТ.firebaseapp.com",
+        projectId: "ВАШ_ПРОЕКТ",
+        storageBucket: "ВАШ_ПРОЕКТ.appspot.com",
+        messagingSenderId: "ВАШ_SENDER_ID",
+        appId: "ВАШ_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // Коллекция в Firestore, где хранятся метаданные видео
+    const VIDEOS_COLLECTION = "videos";
+
+    // Элементы DOM
+    const grid = document.getElementById('videosGrid');
+    const statusEl = document.getElementById('status');
+    const player = document.getElementById('mainPlayer');
+    const playerTitle = document.getElementById('playerTitle');
+
+    let hlsInstance = null;
+    let currentActiveCard = null;
+
+    // ---- Воспроизведение видео по URL ----
+    function playVideo(url, title, cardEl) {
+        // Сброс предыдущего HLS
+        if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+        }
+
+        playerTitle.textContent = title || 'Без названия';
+
+        // Выделяем активную карточку
+        if (currentActiveCard) currentActiveCard.classList.remove('active');
+        if (cardEl) {
+            cardEl.classList.add('active');
+            currentActiveCard = cardEl;
+        }
+
+        // HLS (.m3u8) — используем hls.js, если поддерживается
+        if (url.endsWith('.m3u8') && window.Hls && window.Hls.isSupported()) {
+            hlsInstance = new Hls();
+            hlsInstance.loadSource(url);
+            hlsInstance.attachMedia(player);
+            hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                player.play().catch(() => {});
+            });
+            return;
+        }
+
+        // Обычное видео (mp4, webm) или нативный HLS (Safari)
+        player.src = url;
+        player.play().catch(() => {});
+    }
+
+    // ---- Загрузка списка видео из Firestore ----
+    async function loadVideos() {
+        try {
+            const videosRef = collection(db, VIDEOS_COLLECTION);
+            const q = query(videosRef, orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                statusEl.textContent = 'Пока нет ни одного видео.';
+                return;
+            }
+
+            statusEl.style.display = 'none';
+            grid.innerHTML = '';
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                // Ожидаемые поля: title, description, storagePath, thumbnail (url), hls (bool)
+                const card = document.createElement('div');
+                card.className = 'video-card';
+
+                // Превью
+                if (data.thumbnail) {
+                    const img = document.createElement('img');
+                    img.className = 'thumb';
+                    img.src = data.thumbnail;
+                    img.alt = data.title || '';
+                    img.loading = 'lazy';
+                    card.appendChild(img);
+                } else {
+                    const ph = document.createElement('div');
+                    ph.className = 'thumb-placeholder';
+                    ph.textContent = '🎬';
+                    card.appendChild(ph);
+                }
+
+                // Текст
+                const body = document.createElement('div');
+                body.className = 'card-body';
+                const titleEl = document.createElement('div');
+                titleEl.className = 'card-title';
+                titleEl.textContent = data.title || 'Без названия';
+                const descEl = document.createElement('div');
+                descEl.className = 'card-desc';
+                descEl.textContent = data.description || '';
+                body.appendChild(titleEl);
+                body.appendChild(descEl);
+                card.appendChild(body);
+
+                // Клик — получаем актуальный URL из Storage и играем
+                card.addEventListener('click', async () => {
+                    try {
+                        card.style.opacity = '0.7';
+                        const url = await getDownloadURL(ref(storage, data.storagePath));
+                        playVideo(url, data.title, card);
+                        card.style.opacity = '1';
+                    } catch (err) {
+                        card.style.opacity = '1';
+                        alert('Не удалось получить ссылку на видео: ' + err.message);
+                    }
+                });
+
+                grid.appendChild(card);
+            });
+        } catch (err) {
+            statusEl.textContent = 'Ошибка загрузки списка: ' + err.message;
+            statusEl.className = 'status error';
+            console.error(err);
+        }
+    }
+
+    loadVideos();
+</script>
+
+</body>
+</html>
