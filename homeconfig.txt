@@ -1,1 +1,1 @@
-{"pic":"📄","name":"test","des":"tsest","link":"index.html"}
+{"pic":"🔰","name":"Скачать расширение ИИ","des":"Скачать расширение ИИ длоя настройки своего Micro:AI","link":"/ai/mini-ai-nastroyka (7).mkcd"}!{"pic":"🤖","name":"micro:AI Chat","des":"Чат с ИИ от YaridaNet! (нужно скачать расширение и настроить своего micro:AI под себя)","link":"/ai"}
